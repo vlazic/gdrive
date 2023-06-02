@@ -167,12 +167,32 @@ pub async fn download_directory(
                 continue;
             }
 
-            let body = download_file(&hub, &file.drive_id)
+            let result = download_file(&hub, &file.drive_id)
                 .await
-                .map_err(Error::DownloadFile)?;
+                .map_err(|err| {
+                    eprintln!(
+                        "Warning: Error while downloading file '{}': {}",
+                        file_path.display(),
+                        err
+                    );
+                });
 
-            println!("Downloading file '{}'", file_path.display());
-            save_body_to_file(body, &abs_file_path, file.md5.clone()).await?;
+            if let Ok(body) = result {
+                println!("Downloading file '{}'", file_path.display());
+
+                match save_body_to_file(body, &abs_file_path, file.md5.clone()).await {
+                    Ok(_) => (),
+                    Err(err) => {
+                        eprintln!(
+                            "Warning: Error while saving file '{}': {}",
+                            abs_file_path.display(),
+                            err
+                        )
+                    }
+                }
+            }
+
+
         }
     }
 
@@ -185,6 +205,7 @@ pub async fn download_directory(
 
     Ok(())
 }
+
 
 pub async fn download_file(hub: &Hub, file_id: &str) -> Result<hyper::Body, google_drive3::Error> {
     let (response, _) = hub
